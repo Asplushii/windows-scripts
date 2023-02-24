@@ -1,35 +1,35 @@
 @echo off
 
-setlocal EnableDelayedExpansion
+REM Define the directory where the wallpaper images are stored
+set IMAGE_DIRECTORY="C:\Wallpapers"
 
-rem Set directory for wallpaper images
-set wallpaper_dir=C:\Users\%USERNAME%\Pictures\Wallpapers
+REM Define the time interval for how often the wallpaper should change (in seconds)
+set INTERVAL=300
 
-rem Set time interval for changing wallpaper in seconds
-set interval=300
+REM Create the Windows service
+:serviceloop
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\WallpaperChanger" /v "ImagePath" /t REG_EXPAND_SZ /d "%~dpnx0" /f
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\WallpaperChanger" /v "DisplayName" /t REG_SZ /d "Wallpaper Changer" /f
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\WallpaperChanger" /v "Start" /t REG_DWORD /d 2 /f
+net start WallpaperChanger
 
-rem Initialize counter
-set /a counter=0
-
-rem Create list of wallpaper images
-for /f "delims=" %%a in ('dir /b %wallpaper_dir%') do (
-    set /a counter+=1
-    set "image[!counter!]=%%a"
+REM Randomly select a wallpaper image and set it as the desktop wallpaper
+:wallpaperloop
+setlocal enableextensions
+set "CHOSEN_IMAGE=%IMAGE_DIRECTORY%\*.*"
+set "CHOSEN_IMAGE=!CHOSEN_IMAGE:%~dp0=!"
+for /r %CHOSEN_IMAGE% %%i in (*) do (
+  set "RNDIMAGE=%%i"
+  set /a "counter+=1"
 )
+set /a "rand=(%random%*%counter%/32768)+1"
+set "CHOSEN_IMAGE="
+set "counter=0"
+for /r %CHOSEN_IMAGE% %%i in (*) do if not defined CHOSEN_IMAGE set "CHOSEN_IMAGE=%%i" && set /a "counter+=1" && if !counter!==!rand! set "CHOSEN_IMAGE=%%i" && set /a "counter+=1"
+echo %CHOSEN_IMAGE%
+reg add "HKCU\Control Panel\Desktop" /v Wallpaper /t REG_SZ /d %CHOSEN_IMAGE% /f
+rundll32.exe user32.dll,UpdatePerUserSystemParameters
 
-rem Set number of images
-set /a num_images=%counter%
-
-rem Start changing wallpapers
-:loop
-rem Choose a random number between 1 and num_images
-set /a "random_num=%random% %% %num_images% + 1"
-
-rem Set the wallpaper
-REG ADD "HKCU\Control Panel\Desktop" /v Wallpaper /t REG_SZ /d "%wallpaper_dir%\!image[%random_num%]!" /f
-RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
-
-rem Wait for interval
-ping -n %interval% 127.0.0.1 > nul
-
-goto loop
+REM Wait for the specified interval and then change the wallpaper again
+ping -n %INTERVAL% localhost > nul
+goto wallpaperloop
